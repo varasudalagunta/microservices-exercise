@@ -1,0 +1,7 @@
+.DS_Store
+target/
+node_modules/
+git add .
+git commit -m "2A-2E - Implemented Cart Service (entity, repository, service, controller, DB integration)"
+git push
+
