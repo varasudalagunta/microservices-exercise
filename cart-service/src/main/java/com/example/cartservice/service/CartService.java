@@ -6,6 +6,11 @@ import com.example.cartservice.repository.CartItemRepository;
 import com.example.cartservice.repository.CartRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import com.example.cartservice.exception.CartNotFoundException;
+import com.example.cartservice.exception.InvalidQuantityException;
+import com.example.cartservice.exception.ProductNotFoundException;
+
+
 
 import java.util.List;
 import java.util.Optional;
@@ -34,39 +39,42 @@ public class CartService {
     }
 
     public Cart getCartById(Long id) {
-        Optional<Cart> cart = cartRepository.findById(id);
-        return cart.orElse(null);
+        return cartRepository.findById(id)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found with id: " + id));
     }
-
     public String deleteCart(Long id) {
         if (cartRepository.existsById(id)) {
             cartRepository.deleteById(id);
             return "Cart deleted successfully";
         }
-        return "Cart not found";
+        throw new CartNotFoundException("Cart not found with id: " + id);
     }
 
     public Cart addItemToCart(Long cartId, Long productId, Integer quantity) {
 
+        if (quantity == null || quantity <= 0) {
+            throw new InvalidQuantityException("Quantity must be greater than 0");
+        }
+
         String productUrl = "http://localhost:8081/products/" + productId;
 
+        Object productResponse;
         try {
-            Object productResponse = webClient.get()
+            productResponse = webClient.get()
                     .uri(productUrl)
                     .retrieve()
                     .bodyToMono(Object.class)
                     .block();
-
-            if (productResponse == null) {
-                throw new RuntimeException("Product not found");
-            }
-
         } catch (Exception e) {
-            throw new RuntimeException("Product not found");
+            throw new ProductNotFoundException("Product not found with id: " + productId);
+        }
+
+        if (productResponse == null) {
+            throw new ProductNotFoundException("Product not found with id: " + productId);
         }
 
         Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(() -> new RuntimeException("Cart not found"));
+                .orElseThrow(() -> new CartNotFoundException("Cart not found with id: " + cartId));
 
         CartItem item = new CartItem();
         item.setProductId(productId);
