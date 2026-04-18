@@ -3,6 +3,12 @@ package com.example.productservice.service;
 import com.example.productservice.model.Product;
 import com.example.productservice.repository.ProductRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
+import java.util.stream.Collectors;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,7 +29,12 @@ public class ProductService {
     public List<Product> getAllProducts() {
         return productRepository.findAll();
     }
-
+    public List<Product> getProductsAbovePrice(Double price) {
+        return productRepository.findProductsByPriceGreaterThan(price);
+    }
+    public List<Product> getProductsAbovePriceNative(Double price) {
+        return productRepository.findProductsByPriceGreaterThan(price);
+    }
     public Product getProductById(Long id) {
         Optional<Product> product = productRepository.findById(id);
         return product.orElse(null);
@@ -41,6 +52,21 @@ public class ProductService {
         }
 
         return null;
+    }
+    public Page<Product> getProductsPaginated(int page, int size, String sortBy, String direction) {
+        Sort sort = direction.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return productRepository.findAll(pageable);
+    }
+
+    public List<Product> getProductsAbovePriceUsingStreams(Double price) {
+        return productRepository.findAll()
+                .stream()
+                .filter(product -> product.getPrice() > price)
+                .collect(Collectors.toList());
     }
 
     public String deleteProduct(Long id) {

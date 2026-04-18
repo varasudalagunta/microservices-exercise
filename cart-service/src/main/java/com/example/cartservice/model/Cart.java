@@ -1,6 +1,5 @@
 package com.example.cartservice.model;
 
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +15,6 @@ public class Cart {
     private String userId;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL)
-    @JsonManagedReference
     private List<CartItem> items = new ArrayList<>();
 
     public Cart() {
