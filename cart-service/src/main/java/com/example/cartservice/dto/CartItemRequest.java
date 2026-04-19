@@ -17,12 +17,12 @@ public class CartItemRequest {
         return productId;
     }
 
-    public Integer getQuantity() {
-        return quantity;
-    }
-
     public void setProductId(Long productId) {
         this.productId = productId;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
     }
 
     public void setQuantity(Integer quantity) {

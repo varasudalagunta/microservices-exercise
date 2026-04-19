@@ -130,7 +130,12 @@ public class CartService {
         }
 
         log.info("STEP 6 - Fetching updated cart");
-        return cartRepository.findById(cartId)
+        Cart updatedCart = cartRepository.findById(cartId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found after update with id: " + cartId));
+
+        log.info("STEP 7 - Add item completed successfully for cartId={}, productId={}, quantity={}",
+                cartId, productId, quantity);
+
+        return updatedCart;
     }
 }
