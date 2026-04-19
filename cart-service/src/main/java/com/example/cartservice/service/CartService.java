@@ -13,6 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 import java.util.List;
 
@@ -25,15 +28,17 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final WebClient webClient;
     private final CartEventProducer cartEventProducer;
+    private final Executor taskExecutor;
 
     public CartService(CartRepository cartRepository,
                        CartItemRepository cartItemRepository,
                        WebClient webClient,
-                       CartEventProducer cartEventProducer) {
+                       CartEventProducer cartEventProducer, Executor taskExecutor) {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.webClient = webClient;
         this.cartEventProducer = cartEventProducer;
+        this.taskExecutor = taskExecutor;
     }
 
     public Cart createCart(Cart cart) {
@@ -67,48 +72,64 @@ public class CartService {
 
         String productUrl = "http://localhost:8081/products/" + productId;
 
+        CompletableFuture<Object> productFuture = CompletableFuture.supplyAsync(() -> {
+            log.info("ASYNC STEP A - Calling product-service: {}", productUrl);
+            try {
+                return webClient.get()
+                        .uri(productUrl)
+                        .retrieve()
+                        .bodyToMono(Object.class)
+                        .block();
+            } catch (Exception e) {
+                log.error("ASYNC STEP A FAILED - Product lookup failed", e);
+                throw new ProductNotFoundException("Product not found with id: " + productId);
+            }
+        }, taskExecutor);
+
+        CompletableFuture<Cart> cartFuture = CompletableFuture.supplyAsync(() -> {
+            log.info("ASYNC STEP B - Fetching cart with id={}", cartId);
+            return cartRepository.findById(cartId)
+                    .orElseThrow(() -> new CartNotFoundException("Cart not found with id: " + cartId));
+        }, taskExecutor);
+
         Object productResponse;
+        Cart cart;
+
         try {
-            log.info("STEP 2 - Calling product-service: {}", productUrl);
-            productResponse = webClient.get()
-                    .uri(productUrl)
-                    .retrieve()
-                    .bodyToMono(Object.class)
-                    .block();
-            log.info("STEP 3 - Product-service response received: {}", productResponse);
-        } catch (Exception e) {
-            log.error("STEP 3 FAILED - Product lookup failed", e);
-            throw new ProductNotFoundException("Product not found with id: " + productId);
+            productResponse = productFuture.get();
+            cart = cartFuture.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Async processing interrupted", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Async processing failed", e.getCause());
         }
 
         if (productResponse == null) {
             throw new ProductNotFoundException("Product not found with id: " + productId);
         }
 
-        log.info("STEP 4 - Fetching cart with id={}", cartId);
-        Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(() -> new CartNotFoundException("Cart not found with id: " + cartId));
+        log.info("STEP 2 - Product and cart fetched successfully");
 
-        log.info("STEP 5 - Creating cart item");
         CartItem item = new CartItem();
         item.setProductId(productId);
         item.setQuantity(quantity);
         item.setCart(cart);
 
-        log.info("STEP 6 - Saving cart item");
+        log.info("STEP 3 - Saving cart item");
         cartItemRepository.save(item);
 
         CartEvent event = new CartEvent(cartId, productId, quantity);
         try {
-            log.info("STEP 7 - Sending Kafka event");
+            log.info("STEP 4 - Sending Kafka event");
             cartEventProducer.sendCartEvent(event);
-            log.info("STEP 8 - Kafka event sent successfully");
+            log.info("STEP 5 - Kafka event sent successfully");
         } catch (Exception e) {
-            log.error("STEP 8 FAILED - Kafka send failed", e);
+            log.error("STEP 5 FAILED - Kafka send failed", e);
             throw new RuntimeException("Failed to send Kafka event", e);
         }
 
-        log.info("STEP 9 - Fetching updated cart");
+        log.info("STEP 6 - Fetching updated cart");
         return cartRepository.findById(cartId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found after update with id: " + cartId));
     }
