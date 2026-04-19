@@ -1,5 +1,12 @@
 package com.example.cartservice.dto;
 
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
+@Getter
+@Setter
+@ToString
 public class CartEvent {
 
     private Long cartId;
@@ -12,30 +19,6 @@ public class CartEvent {
     public CartEvent(Long cartId, Long productId, Integer quantity) {
         this.cartId = cartId;
         this.productId = productId;
-        this.quantity = quantity;
-    }
-
-    public Long getCartId() {
-        return cartId;
-    }
-
-    public void setCartId(Long cartId) {
-        this.cartId = cartId;
-    }
-
-    public Long getProductId() {
-        return productId;
-    }
-
-    public void setProductId(Long productId) {
-        this.productId = productId;
-    }
-
-    public Integer getQuantity() {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity) {
         this.quantity = quantity;
     }
 }

@@ -59,7 +59,7 @@ public class CartService {
 
     public Cart addItemToCart(Long cartId, Long productId, Integer quantity) {
 
-        log.info("Add item request received. cartId={}, productId={}, quantity={}", cartId, productId, quantity);
+        log.info("STEP 1 - Add item request received. cartId={}, productId={}, quantity={}", cartId, productId, quantity);
 
         if (quantity == null || quantity <= 0) {
             throw new InvalidQuantityException("Quantity must be greater than 0");
@@ -69,12 +69,15 @@ public class CartService {
 
         Object productResponse;
         try {
+            log.info("STEP 2 - Calling product-service: {}", productUrl);
             productResponse = webClient.get()
                     .uri(productUrl)
                     .retrieve()
                     .bodyToMono(Object.class)
                     .block();
+            log.info("STEP 3 - Product-service response received: {}", productResponse);
         } catch (Exception e) {
+            log.error("STEP 3 FAILED - Product lookup failed", e);
             throw new ProductNotFoundException("Product not found with id: " + productId);
         }
 
@@ -82,21 +85,31 @@ public class CartService {
             throw new ProductNotFoundException("Product not found with id: " + productId);
         }
 
+        log.info("STEP 4 - Fetching cart with id={}", cartId);
         Cart cart = cartRepository.findById(cartId)
                 .orElseThrow(() -> new CartNotFoundException("Cart not found with id: " + cartId));
 
+        log.info("STEP 5 - Creating cart item");
         CartItem item = new CartItem();
         item.setProductId(productId);
         item.setQuantity(quantity);
         item.setCart(cart);
 
+        log.info("STEP 6 - Saving cart item");
         cartItemRepository.save(item);
 
-       // CartEvent event = new CartEvent(cartId, productId, quantity);
-       // cartEventProducer.sendCartEvent(event);
+        CartEvent event = new CartEvent(cartId, productId, quantity);
+        try {
+            log.info("STEP 7 - Sending Kafka event");
+            cartEventProducer.sendCartEvent(event);
+            log.info("STEP 8 - Kafka event sent successfully");
+        } catch (Exception e) {
+            log.error("STEP 8 FAILED - Kafka send failed", e);
+            throw new RuntimeException("Failed to send Kafka event", e);
+        }
 
-        log.info("Item added successfully to cartId={}", cartId);
-
-        return cartRepository.findById(cartId).orElse(null);
+        log.info("STEP 9 - Fetching updated cart");
+        return cartRepository.findById(cartId)
+                .orElseThrow(() -> new CartNotFoundException("Cart not found after update with id: " + cartId));
     }
 }

@@ -12,8 +12,4 @@ public class CartServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(CartServiceApplication.class, args);
     }
-    @Bean
-    public WebClient webClient() {
-        return WebClient.builder().build();
-    }
 }
